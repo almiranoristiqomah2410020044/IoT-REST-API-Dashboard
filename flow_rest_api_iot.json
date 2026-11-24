@@ -1,0 +1,303 @@
+[
+  {
+    "id": "flow_rest_api_001",
+    "type": "tab",
+    "label": "REST API IoT",
+    "disabled": false,
+    "info": "REST API IoT - simulasi ESP32, MQTT, monitoring dan kontrol"
+  },
+  {
+    "id": "mqtt_broker_local_001",
+    "type": "mqtt-broker",
+    "name": "Mosquitto Lokal",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "node-red-rest-api",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": ""
+  },
+  {
+    "id": "mqtt_in_sensor_001",
+    "type": "mqtt in",
+    "z": "flow_rest_api_001",
+    "name": "Terima Data Sensor",
+    "topic": "iot/sensor",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "mqtt_broker_local_001",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "fn_store_sensor_001"
+      ]
+    ]
+  },
+  {
+    "id": "fn_store_sensor_001",
+    "type": "function",
+    "z": "flow_rest_api_001",
+    "name": "Simpan Data Sensor",
+    "func": "var data = msg.payload;\nif (typeof data === 'string') {\n    try { data = JSON.parse(data); } catch (e) { node.error('Payload MQTT bukan JSON valid', msg); return null; }\n}\nif (!data || typeof data !== 'object') return null;\ndata.received = new Date().toISOString();\nflow.set('lastSensor', data);\nvar history = flow.get('history') || [];\nhistory.push(data);\nif (history.length > 50) history.shift();\nflow.set('history', history);\nmsg.payload = data;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 100,
+    "wires": [
+      [
+        "debug_sensor_001"
+      ]
+    ]
+  },
+  {
+    "id": "debug_sensor_001",
+    "type": "debug",
+    "z": "flow_rest_api_001",
+    "name": "Data Sensor Masuk",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 680,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "http_get_suhu_001",
+    "type": "http in",
+    "z": "flow_rest_api_001",
+    "name": "GET /api/suhu",
+    "url": "/api/suhu",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 160,
+    "y": 210,
+    "wires": [
+      [
+        "fn_get_suhu_001"
+      ]
+    ]
+  },
+  {
+    "id": "fn_get_suhu_001",
+    "type": "function",
+    "z": "flow_rest_api_001",
+    "name": "Ambil Data Suhu",
+    "func": "var data = flow.get('lastSensor') || {suhu:null, kelembaban:null, timestamp:null, received:null};\nmsg.statusCode = 200;\nmsg.headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'};\nmsg.payload = {status:'success', data:data, server_time:new Date().toISOString()};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 210,
+    "wires": [
+      [
+        "http_resp_suhu_001"
+      ]
+    ]
+  },
+  {
+    "id": "http_resp_suhu_001",
+    "type": "http response",
+    "z": "flow_rest_api_001",
+    "name": "Response Suhu",
+    "statusCode": "",
+    "headers": {},
+    "x": 660,
+    "y": 210,
+    "wires": []
+  },
+  {
+    "id": "http_get_history_001",
+    "type": "http in",
+    "z": "flow_rest_api_001",
+    "name": "GET /api/history",
+    "url": "/api/history",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 300,
+    "wires": [
+      [
+        "fn_get_history_001"
+      ]
+    ]
+  },
+  {
+    "id": "fn_get_history_001",
+    "type": "function",
+    "z": "flow_rest_api_001",
+    "name": "Ambil History",
+    "func": "var history = flow.get('history') || [];\nmsg.statusCode = 200;\nmsg.headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'};\nmsg.payload = {status:'success', count:history.length, data:history};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 410,
+    "y": 300,
+    "wires": [
+      [
+        "http_resp_history_001"
+      ]
+    ]
+  },
+  {
+    "id": "http_resp_history_001",
+    "type": "http response",
+    "z": "flow_rest_api_001",
+    "name": "Response History",
+    "statusCode": "",
+    "headers": {},
+    "x": 660,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "http_post_kontrol_001",
+    "type": "http in",
+    "z": "flow_rest_api_001",
+    "name": "POST /api/kontrol",
+    "url": "/api/kontrol",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 400,
+    "wires": [
+      [
+        "fn_post_kontrol_001"
+      ]
+    ]
+  },
+  {
+    "id": "fn_post_kontrol_001",
+    "type": "function",
+    "z": "flow_rest_api_001",
+    "name": "Validasi & Kirim Kontrol",
+    "func": "var body = msg.payload || {};\nif (!body.device || !body.action) {\n    msg.statusCode = 400;\n    msg.headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'};\n    msg.payload = {status:'error', message:'device dan action wajib diisi'};\n    return [msg, null];\n}\nvar responseMsg = RED.util.cloneMessage(msg);\nresponseMsg.statusCode = 200;\nresponseMsg.headers = {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'};\nresponseMsg.payload = {status:'success', message:'Perintah diterima Node-RED', sent:body};\nvar mqttMsg = {topic:'iot/kontrol', payload:body};\nreturn [responseMsg, mqttMsg];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 400,
+    "wires": [
+      [
+        "http_resp_kontrol_001"
+      ],
+      [
+        "mqtt_out_kontrol_001"
+      ]
+    ]
+  },
+  {
+    "id": "http_resp_kontrol_001",
+    "type": "http response",
+    "z": "flow_rest_api_001",
+    "name": "Response Kontrol",
+    "statusCode": "",
+    "headers": {},
+    "x": 700,
+    "y": 370,
+    "wires": []
+  },
+  {
+    "id": "mqtt_out_kontrol_001",
+    "type": "mqtt out",
+    "z": "flow_rest_api_001",
+    "name": "Kirim Kontrol MQTT",
+    "topic": "",
+    "qos": "",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt_broker_local_001",
+    "x": 700,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "http_options_001",
+    "type": "http in",
+    "z": "flow_rest_api_001",
+    "name": "OPTIONS CORS",
+    "url": "/api/*",
+    "method": "options",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 160,
+    "y": 520,
+    "wires": [
+      [
+        "fn_cors_001"
+      ]
+    ]
+  },
+  {
+    "id": "fn_cors_001",
+    "type": "function",
+    "z": "flow_rest_api_001",
+    "name": "Atur CORS",
+    "func": "msg.statusCode = 204;\nmsg.payload = '';\nmsg.headers = {\n 'Access-Control-Allow-Origin':'*',\n 'Access-Control-Allow-Methods':'GET, POST, PUT, OPTIONS',\n 'Access-Control-Allow-Headers':'Content-Type, X-API-Key'\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 520,
+    "wires": [
+      [
+        "http_resp_cors_001"
+      ]
+    ]
+  },
+  {
+    "id": "http_resp_cors_001",
+    "type": "http response",
+    "z": "flow_rest_api_001",
+    "name": "Response CORS",
+    "statusCode": "",
+    "headers": {},
+    "x": 650,
+    "y": 520,
+    "wires": []
+  }
+]

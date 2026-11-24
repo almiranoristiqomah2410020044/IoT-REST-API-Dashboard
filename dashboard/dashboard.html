@@ -1,0 +1,627 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard - REST API</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 28px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .card, .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 25px;
+        }
+
+        .card {
+            text-align: center;
+        }
+
+        .card .label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .card .value {
+            font-size: 42px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #667eea;
+        }
+
+        .card .unit {
+            font-size: 18px;
+            color: #aaa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #444;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-on {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-off {
+            background: #dc3545;
+            color: white;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #666;
+        }
+
+        #log {
+            background: #1e1e1e;
+            color: #0f0;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #log .error {
+            color: #f66;
+        }
+
+        #log .info {
+            color: #6af;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .card, .panel {
+                padding: 18px;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>IoT Dashboard — REST API</h1>
+
+    <div class="cards">
+
+        <div class="card">
+            <div class="label">Suhu</div>
+            <div class="value" id="suhu">--</div>
+            <div class="unit">°C</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Kelembapan</div>
+            <div class="value" id="kelembaban">--</div>
+            <div class="unit">%</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Status Sensor</div>
+            <div class="value" style="font-size:22px;">
+                <span class="status-badge status-offline" id="status-badge">
+                    OFFLINE
+                </span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="panel">
+        <h2>Kontrol Perangkat</h2>
+
+        <div class="controls">
+
+            <button class="btn btn-on" id="btn-on"
+                onclick="kontrol('lampu','ON')">
+                Nyalakan Lampu
+            </button>
+
+            <button class="btn btn-off" id="btn-off"
+                onclick="kontrol('lampu','OFF')">
+                Matikan Lampu
+            </button>
+
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Grafik Monitoring Suhu</h2>
+
+        <div class="chart-container">
+            <canvas id="grafikSuhu"></canvas>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Grafik Monitoring Kelembapan</h2>
+
+        <div class="chart-container">
+            <canvas id="grafikKelembapan"></canvas>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>10 Data Sensor Terakhir (SQLite)</h2>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Waktu</th>
+                        <th>Suhu (°C)</th>
+                        <th>Kelembapan (%)</th>
+                    </tr>
+                </thead>
+
+                <tbody id="history-body">
+                    <tr>
+                        <td colspan="3">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Log Aktivitas</h2>
+        <div id="log"></div>
+    </div>
+
+</div>
+
+<script>
+
+// =====================================
+// KONFIGURASI API
+// =====================================
+
+const API_BASE = 'http://localhost:1880/api';
+
+
+// =====================================
+// LOG AKTIVITAS
+// =====================================
+
+function log(msg, type = 'info') {
+
+    const el = document.getElementById('log');
+    const time = new Date().toLocaleTimeString();
+
+    const item = document.createElement('div');
+    item.className = type;
+    item.textContent = `[${time}] ${msg}`;
+
+    el.appendChild(item);
+    el.scrollTop = el.scrollHeight;
+
+    while (el.children.length > 50) {
+        el.removeChild(el.firstChild);
+    }
+}
+
+
+// =====================================
+// GRAFIK SUHU
+// =====================================
+
+const chartSuhu = new Chart(
+    document.getElementById('grafikSuhu'),
+    {
+        type: 'line',
+
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Suhu (°C)',
+                data: [],
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102,126,234,0.15)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Suhu (°C)'
+                    }
+                }
+            }
+        }
+    }
+);
+
+
+// =====================================
+// GRAFIK KELEMBAPAN
+// =====================================
+
+const chartKelembapan = new Chart(
+    document.getElementById('grafikKelembapan'),
+    {
+        type: 'line',
+
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Kelembapan (%)',
+                data: [],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40,167,69,0.15)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Kelembapan (%)'
+                    }
+                }
+            }
+        }
+    }
+);
+
+
+// =====================================
+// MENGAMBIL DATA SENSOR TERKINI
+// =====================================
+
+async function fetchSensor() {
+
+    try {
+
+        const res = await fetch(`${API_BASE}/suhu`);
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const json = await res.json();
+
+        if (json.status === 'success' && json.data) {
+
+            document.getElementById('suhu').textContent =
+                json.data.suhu ?? '--';
+
+            document.getElementById('kelembaban').textContent =
+                json.data.kelembaban ?? '--';
+
+            const badge =
+                document.getElementById('status-badge');
+
+            badge.textContent = 'ONLINE';
+            badge.className = 'status-badge status-online';
+
+        } else {
+
+            throw new Error('Data sensor tidak tersedia');
+
+        }
+
+    } catch (err) {
+
+        const badge =
+            document.getElementById('status-badge');
+
+        badge.textContent = 'OFFLINE';
+        badge.className = 'status-badge status-offline';
+
+        log(`Gagal fetch sensor: ${err.message}`, 'error');
+
+    }
+}
+
+
+// =====================================
+// MENGAMBIL RIWAYAT DARI SQLITE
+// ENDPOINT DIPERBAIKI: /api/history
+// =====================================
+
+async function fetchHistory() {
+
+    try {
+
+        const res = await fetch(`${API_BASE}/history`);
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const json = await res.json();
+
+        let data = Array.isArray(json)
+            ? json
+            : json.data;
+
+        if (!Array.isArray(data)) {
+            throw new Error('Format respons riwayat tidak sesuai');
+        }
+
+        const sorted = data.slice().sort((a, b) => {
+            return Number(a.id || 0) - Number(b.id || 0);
+        });
+
+        const latest = sorted.slice(-10);
+
+        const tbody =
+            document.getElementById('history-body');
+
+        if (latest.length === 0) {
+
+            tbody.innerHTML =
+                '<tr><td colspan="3">Belum ada data sensor</td></tr>';
+
+            chartSuhu.data.labels = [];
+            chartSuhu.data.datasets[0].data = [];
+
+            chartKelembapan.data.labels = [];
+            chartKelembapan.data.datasets[0].data = [];
+
+            chartSuhu.update();
+            chartKelembapan.update();
+
+            return;
+        }
+
+        const newestFirst = latest.slice().reverse();
+
+        tbody.innerHTML = newestFirst.map(d => {
+
+            const waktu = d.timestamp || d.received;
+
+            const waktuTampil = waktu
+                ? new Date(waktu).toLocaleString('id-ID')
+                : '-';
+
+            return `
+                <tr>
+                    <td>${waktuTampil}</td>
+                    <td>${d.suhu ?? '-'}</td>
+                    <td>${d.kelembaban ?? '-'}</td>
+                </tr>
+            `;
+
+        }).join('');
+
+
+        const labels = latest.map(d => {
+
+            const waktu = d.timestamp || d.received;
+
+            return waktu
+                ? new Date(waktu).toLocaleTimeString('id-ID')
+                : '-';
+
+        });
+
+        const suhuData = latest.map(d =>
+            Number(d.suhu)
+        );
+
+        const kelembapanData = latest.map(d =>
+            Number(d.kelembaban)
+        );
+
+        chartSuhu.data.labels = labels;
+        chartSuhu.data.datasets[0].data = suhuData;
+        chartSuhu.update();
+
+        chartKelembapan.data.labels = labels;
+        chartKelembapan.data.datasets[0].data = kelembapanData;
+        chartKelembapan.update();
+
+    } catch (err) {
+
+        log(`Gagal mengambil riwayat SQLite: ${err.message}`, 'error');
+
+    }
+
+}
+
+
+// =====================================
+// KONTROL LAMPU
+// =====================================
+
+async function kontrol(device, action) {
+
+    const btnOn = document.getElementById('btn-on');
+    const btnOff = document.getElementById('btn-off');
+
+    try {
+
+        btnOn.disabled = true;
+        btnOff.disabled = true;
+
+        log(`Mengirim perintah ${device} → ${action}...`);
+
+        const res = await fetch(`${API_BASE}/kontrol`, {
+
+            method: 'POST',
+
+            headers: {
+                'Content-Type': 'application/json'
+            },
+
+            body: JSON.stringify({
+                device: device,
+                action: action
+            })
+
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) {
+            throw new Error(json.message || `HTTP ${res.status}`);
+        }
+
+        if (json.status === 'success') {
+
+            log(`Berhasil: ${device} → ${action}`, 'info');
+
+        } else {
+
+            throw new Error(json.message || 'Perintah gagal');
+
+        }
+
+    } catch (err) {
+
+        log(`Error kontrol: ${err.message}`, 'error');
+
+    } finally {
+
+        btnOn.disabled = false;
+        btnOff.disabled = false;
+
+    }
+
+}
+
+
+// =====================================
+// AUTO REFRESH
+// =====================================
+
+log('Dashboard dimulai, polling setiap 3 detik...');
+
+fetchSensor();
+fetchHistory();
+
+setInterval(fetchSensor, 3000);
+setInterval(fetchHistory, 5000);
+
+</script>
+
+</body>
+</html>
